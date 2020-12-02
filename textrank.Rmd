@@ -1,0 +1,95 @@
+---
+title: "Using TextRank to Identify Keywords in Text"
+author: "Summer Chambers, Gaurav Anand, Vasudha Manikandan, and John Zhang"
+date: "12/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("textrank")
+#install.packages("tm")
+#install.packages("udpipe")
+#install.packages("readtext")
+#install.packages("wordcloud")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(textrank)
+library(tm)
+library(udpipe)
+library(readtext)
+library(wordcloud)
+library(igraph)
+library(tidyverse)
+```
+
+References: 
+
+https://bnosac.github.io/udpipe/docs/doc7.html
+https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html#introduction
+https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf
+
+Let's read in the text! I converted everything to lowercase for simplicity of preprocessing.
+
+```{r}
+#Using TM
+#filepath <- getwd()
+#corp_cms <- Corpus(DirSource(filepath, pattern="CMS-2018-0101-0001.txt"))
+
+#Readtext reads in text
+cms <- readtext("CMS-2018-0101-0001.txt")
+cms <- tolower(cms$text) #make all lowercase
+cms <- substr(cms, 48111, 929040) #select a substring
+```
+
+Now let's do some preprocessing of the text.  UDPipe's annotate function performs tokenization and part of speech tagging.  I'll also remove stopwords by eliminating the first 15 most common non-nouns in the text.
+
+```{r}
+#Udpipe
+ud_model <- udpipe_download_model(language="english")
+ud_model <- udpipe_load_model(ud_model$file_model)
+x <- udpipe_annotate(ud_model, x=cms, trace=TRUE) #use udpipe to tokenize and tag POS
+x <- as.data.frame(x)
+
+unique(x$upos) #parts of speech
+
+nouns_only <- subset(x, upos %in% "NOUN") #nouns only
+noun_frequency <- txt_freq(x=nouns_only$lemma) #udpipe
+
+non_nouns <- subset(x, !(upos %in% "NOUN")) #only non-nouns
+
+stop_words <- head(txt_freq(non_nouns$lemma), 20)
+
+stop_words$key
+```
+
+Now let's use TextRank to extract keywords.
+
+```{r}
+#Textrank
+clean_x <- subset(x, !(lemma %in% stop_words$key))
+
+identified_keywords <- textrank_keywords(clean_x$lemma, 
+                              relevant=clean_x$upos %in% c("NOUN", "ADJ"), 
+                              ngram_max=8, 
+                              sep=" ")
+
+keywords_frequent <- subset(identified_keywords$keywords, freq > 80)# & ngram = 1 )
+
+head(keywords_frequent$keyword, 20)
+```
+
+
+We can plot any subset of these identified keywords with WordCloud.
+
+```{r}
+#Wordcloud
+wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c())
+
+```
+Cool, right?  But how does TextRank work?
+
+It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or central nodes highest...
+
