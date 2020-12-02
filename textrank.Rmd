@@ -15,6 +15,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("wordcloud")
 ```
 
+Libraries Needed:
+
 ```{r message=FALSE, warning=FALSE}
 library(textrank)
 library(tm)
@@ -25,11 +27,7 @@ library(igraph)
 library(tidyverse)
 ```
 
-References: 
-
-https://bnosac.github.io/udpipe/docs/doc7.html
-https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html#introduction
-https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf
+Example Text: 
 
 Let's read in the text! I converted everything to lowercase for simplicity of preprocessing.
 
@@ -44,17 +42,23 @@ cms <- tolower(cms$text) #make all lowercase
 cms <- substr(cms, 48111, 929040) #select a substring
 ```
 
-Now let's do some preprocessing of the text.  UDPipe's annotate function performs tokenization and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
+Now let's do some preprocessing of the text.  UDPipe's `annotate` function performs tokenization and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
 
 ```{r}
 #Udpipe
-ud_model <- udpipe_download_model(language="english")
-ud_model <- udpipe_load_model(ud_model$file_model)
+#ud_model <- udpipe_download_model(language="english")
+#ud_model <- udpipe_load_model(ud_model$file_model)
+ud_model <- udpipe_load_model(file="english-ewt-ud-2.5-191206.udpipe")
+
 x <- udpipe_annotate(ud_model, x=cms, trace=TRUE) #use udpipe to tokenize and tag POS
 x <- as.data.frame(x)
 
 unique(x$upos) #parts of speech
 
+```
+
+
+```{r}
 nouns_only <- subset(x, upos %in% "NOUN") #nouns only
 noun_frequency <- txt_freq(x=nouns_only$lemma) #udpipe
 
@@ -82,7 +86,7 @@ head(keywords_frequent$keyword, 20)
 ```
 
 
-We can plot any subset of these identified keywords with WordCloud.
+We can plot any subset of these identified keywords by their frequency with WordCloud.
 
 ```{r}
 #Wordcloud
@@ -90,7 +94,25 @@ wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c
 
 ```
 
+
 Cool, right?  But how does TextRank work?
 
 It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or central nodes highest...
+
+
+Here we'll use igraph to visualize and explain the algorithm
+
+
+
+
+
+
+
+
+
+References: 
+
+https://bnosac.github.io/udpipe/docs/doc7.html
+https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html  
+https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf
 
