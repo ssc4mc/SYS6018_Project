@@ -42,7 +42,7 @@ cms <- tolower(cms$text) #make all lowercase
 cms <- substr(cms, 48111, 929040) #select a substring
 ```
 
-Now let's do some preprocessing of the text.  UDPipe's `annotate` function performs tokenization and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
+Now let's do some preprocessing of the text.  UDPipe's `annotate` function performs tokenization, lemmatization, and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
 
 ```{r}
 #Udpipe
@@ -54,7 +54,6 @@ x <- udpipe_annotate(ud_model, x=cms, tagger="default", parser="none") #tokenize
 x <- as.data.frame(x)
 
 unique(x$upos) #parts of speech
-
 ```
 
 
@@ -69,7 +68,7 @@ stop_words <- head(txt_freq(non_nouns$lemma), 20)
 stop_words$key
 ```
 
-Now let's use TextRank to extract keywords.
+Now let's use TextRank to extract keywords. They recommend restricting our vocabulary to Nouns and Adjectives only for the most accurate results.
 
 ```{r}
 #Textrank
@@ -100,11 +99,19 @@ Cool, right?  But how does TextRank work?
 It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or central nodes highest.  PageRank was created by Google to measure the importance of webpages by understanding how many other websites linked to them.  THe PageRank algorithm relies on the idea of a random surfer clicking from page to page, along with a dampening factor representing a totally random jump to any page in the network.  This equation represents the algorithm:
 
 
+$PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})$
+
+According to the authors of both PageRank and TextRank, the dampening factor <d> is chosen to be .85, resulting in the equation:
+
+$PR(V_i) = 0.15 + (0.85 \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})$
+
+The TextRank algorithm begins by setting every node's score equal to an arbitrary value, then iterates until it converges on a solution/final graph.  This process tends to take about 20-30 iterations.
+
+Sequential keywords are reconstructed as multi-word keywords after the iterations are complete.  The function returns the top 1/3 sorted importance scores and keywords.
 
 
 
-
-Here we'll use igraph to visualize and explain the algorithm
+Here we'll use igraph to visualize and explain the algorithm as it is used in text.
 
 
 
@@ -116,7 +123,7 @@ Here we'll use igraph to visualize and explain the algorithm
 
 References: 
 
-https://bnosac.github.io/udpipe/docs/doc7.html
-https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html  
-https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf
+* https://bnosac.github.io/udpipe/docs/doc7.html  
+* https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html   
+* https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf  
 
