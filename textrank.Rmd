@@ -1,7 +1,7 @@
 ---
 title: "Using TextRank to Identify Keywords in Text"
 author: "Summer Chambers, Gaurav Anand, Vasudha Manikandan, and John Zhang"
-date: "12/2/2020"
+date: "December 2020"
 output: html_document
 ---
 
@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("udpipe")
 #install.packages("readtext")
 #install.packages("wordcloud")
+#install.packages("ggraph")
 ```
 
 Libraries Needed:
@@ -24,6 +25,7 @@ library(udpipe)
 library(readtext)
 library(wordcloud)
 library(igraph)
+library(ggraph)
 library(tidyverse)
 ```
 
@@ -50,10 +52,12 @@ Now let's do some preprocessing of the text.  UDPipe's `annotate` function perfo
 #ud_model <- udpipe_load_model(ud_model$file_model)
 ud_model <- udpipe_load_model(file="english-ewt-ud-2.5-191206.udpipe")
 
-x <- udpipe_annotate(ud_model, x=cms, tagger="default", parser="none") #tokenize and tag POS
+x <- udpipe_annotate(ud_model, x=cms, tagger="default", parser="none") #tokenize, lemmatize, and tag POS
 x <- as.data.frame(x)
 
 unique(x$upos) #parts of speech
+
+n_distinct(x$lemma)
 ```
 
 
@@ -74,20 +78,31 @@ Now let's use TextRank to extract keywords. They recommend restricting our vocab
 #Textrank
 clean_x <- subset(x, !(lemma %in% stop_words$key))
 
-identified_keywords <- textrank_keywords(clean_x$lemma, 
+textrank_result <- textrank_keywords(clean_x$lemma, 
                               relevant=clean_x$upos %in% c("NOUN", "ADJ"), 
                               ngram_max=8, 
                               sep=" ")
 
-keywords_frequent <- subset(identified_keywords$keywords, freq > 80)# & ngram = 1 )
 
-head(keywords_frequent$keyword, 20)
+summary(textrank_result$keywords_by_ngram)
+
+log_sorted_pr <- sort(log(textrank_result$pagerank$vector), decreasing=T)
+
+plot(log(textrank_result$pagerank$vector), xlab="Word Index", ylab="Log PageRank", main="TextRank")
+abline(a=log_sorted_pr[(length(log_sorted_pr)/3)], b=0)
+
+
 ```
 
 
 We can plot any subset of these identified keywords by their frequency with WordCloud.
 
 ```{r}
+
+keywords_frequent <- subset(textrank_result$keywords, freq > 80)# & ngram = 1 )
+
+head(keywords_frequent$keyword, 20)
+
 #Wordcloud
 wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c())
 
@@ -96,7 +111,7 @@ wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c
 
 Cool, right?  But how does TextRank work?
 
-It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or central nodes highest.  PageRank was created by Google to measure the importance of webpages by understanding how many other websites linked to them.  THe PageRank algorithm relies on the idea of a random surfer clicking from page to page, along with a dampening factor representing a totally random jump to any page in the network.  This equation represents the algorithm:
+It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or graphically central nodes highest.  PageRank was created by Google to measure the importance of webpages by understanding how many other websites linked to them.  The PageRank algorithm relies on the idea of a random surfer clicking from page to page, along with a dampening factor representing a totally random jump to any page in the network.  This equation represents the algorithm:
 
 
 $PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})$
@@ -114,10 +129,30 @@ Sequential keywords are reconstructed as multi-word keywords after the iteration
 Here we'll use igraph to visualize and explain the algorithm as it is used in text.
 
 
+First, we can look at the most common word collocations (how often to words appear sequentially?)
+
+```{r}
+x_keywords <- subset(x, lemma %in% keywords_frequent$keyword)
+colloc <- keywords_collocation(x_keywords, term="lemma", group="sentence_id", ngram_max=2, n_min=75)
+
+colloc
 
 
+#Weighted Undirected
+
+#code from https://cran.r-project.org/web/packages/udpipe/vignettes/udpipe-usecase-postagging-lemmatisation.html
+
+cooc <- cooccurrence(x=subset(clean_x, upos %in% c("NOUN", "ADJ")), term="lemma", group="sentence_id")
 
 
+network <- head(cooc, 45)
+network <- graph_from_data_frame(network)
+ggraph(network, layout="fr") +
+  geom_edge_link(aes(width=cooc, edge_alpha=cooc), edge_colour="purple") +
+  geom_node_text(aes(label=name), col="darkblue", size=4) +
+  theme(legend.position="none") +
+  labs(title="Common Word Cooccurrences")
+```
 
 
 
@@ -126,4 +161,4 @@ References:
 * https://bnosac.github.io/udpipe/docs/doc7.html  
 * https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html   
 * https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf  
-
+* https://cran.r-project.org/web/packages/udpipe/vignettes/udpipe-usecase-postagging-lemmatisation.html 
