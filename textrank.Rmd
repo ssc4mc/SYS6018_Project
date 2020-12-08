@@ -39,9 +39,8 @@ Let's read in the text! I converted everything to lowercase for simplicity of pr
 #corp_cms <- Corpus(DirSource(filepath, pattern="CMS-2018-0101-0001.txt"))
 
 #Readtext reads in text
-cms <- readtext("CMS-2018-0101-0001.txt")
+cms <- readtext("mcdanks.txt")
 cms <- tolower(cms$text) #make all lowercase
-cms <- substr(cms, 48111, 929040) #select a substring
 ```
 
 Now let's do some preprocessing of the text.  UDPipe's `annotate` function performs tokenization, lemmatization, and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
@@ -99,7 +98,7 @@ We can plot any subset of these identified keywords by their frequency with Word
 
 ```{r}
 
-keywords_frequent <- subset(textrank_result$keywords, freq > 80)# & ngram = 1 )
+keywords_frequent <- subset(textrank_result$keywords, freq > 5)# & ngram = 1 )
 
 head(keywords_frequent$keyword, 20)
 
