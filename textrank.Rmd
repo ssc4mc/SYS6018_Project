@@ -172,9 +172,15 @@ ggraph(network, layout="fr") +
 
 We can also us TextRank for sentence extraction where we can automatically identify the most important sentences in a document. Using TextRank, we can calculate the overlap between any two sentences in the document by the number of common tokens between their processed forms. 
 
+The similiarity between any two sentences, $S_i$ and $S_j$ can be calculated using the similiarity score,
+
 $$
 \text{Similiarity}(S_i,S_j) = \frac{ \{ w_k \mid w_k \in S_i \text{ and } w_k \in S_j \} }{log(|S_i|) + log(|S_j|)} 
 $$
+
+This similiarity score allows us to represent sentences as nodes in graphs connected to other sentences based on how similiar they are to those nodes. This weighted graph-based ranking can then analyzed using the `textrank` module in R.
+
+
 
 ```{r sentence_extraction}
 
