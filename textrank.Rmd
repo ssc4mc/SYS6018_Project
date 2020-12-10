@@ -178,14 +178,50 @@ $$
 \text{Similiarity}(S_i,S_j) = \frac{ \{ w_k \mid w_k \in S_i \text{ and } w_k \in S_j \} }{log(|S_i|) + log(|S_j|)} 
 $$
 
-This similiarity score allows us to represent sentences as nodes in graphs connected to other sentences based on how similiar they are to those nodes. This weighted graph-based ranking can then analyzed using the `textrank` module in R.
+This similiarity score allows us to represent sentences as nodes in graphs connected to other sentences based on how similiar they are to those nodes. Similiar to keyword extraction, we need to isolate the nouns and adjectives in order to find the most significant sentences. This weighted graph-based ranking can then be analyzed using the `textrank` module in R.
+
+Switching to this weighted graph based algorithm, our TextRank score for each node can be calculated by using the formula,
+
+$$
+PR(V_i) = 1 - d + d \times \sum_{V_j \in \text{ to }(V_i)}\frac{w_{ji}}{\sum_{V_k \text{ from }(V_j)}w_{jk}} PR(V_j)
+$$
+
+For this part of the tutorial, let's use the constitution of the United States from way back in 1787. Just like we did for keyword extraction, we first have to lemmatize, tokenize and tag Parts of Speech (POS) for our new document.
 
 
 
-```{r sentence_extraction}
+```{r sentence_extraction, echo=True}
 
+#Readtext reads in text
+constitution_text <- readtext("constitution.txt")
+constitution_text <- tolower(constitution_text$text) #make all lowercase
+ud_model <- udpipe_load_model(file="english-ewt-ud-2.5-191206.udpipe")
+
+constitution <- udpipe_annotate(ud_model, x=constitution, tagger="default", parser="none") #tokenize, lemmatize, and tag POS
+constitution <- as.data.frame(constitution)
 ```
 
+We can then view the tokens along with their respective sentences (denoted by sentence id).
+
+```{r sentence_extraction1}
+head(constitution[,c('sentence_id','lemma','upos')],10)
+```
+
+Using the `udpipe` library, we need to identify our sentences by their respective paragraphs and isolate the nouns and adjectives within the sentences.
+```{r sentence_extraction2}
+
+sentence_identifier <- unique(constitution[,'sentence_id'])
+sentences <- as.data.frame(unique(constitution$sentence))
+relevant_terms <- subset(constitution, upos %in% c('NOUN','ADJ')) # isolate nouns and adjectives
+relevant_terms <- relevant_terms[,c('sentence_id','lemma')]
+head(relevant_terms)
+```
+
+Once we are done with this, we can now begin to analyze our document.
+
+```{r sentence_extraction3}
+tr <- textrank_sentences(data = sentences, terminology = relevant_terms)
+```
 
 References: 
 
