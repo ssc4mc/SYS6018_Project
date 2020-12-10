@@ -5,6 +5,9 @@ date: "December 2020"
 output: html_document
 ---
 
+
+# Using TextRank to Identify Keywords in Text
+
 ```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -16,11 +19,22 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("ggraph")
 ```
 
-Libraries Needed:
+Some of the libraries you will need for this quick R tutorial are `textrank` `udpipe`, `readtext`, `wordcloud`, `igraph`, `ggraph`,`tidyverse`. They can be downloaded from CRAN using the following code.
+
+
+```{r install_libraries, eval=FALSE}
+install.packages("textrank")
+install.packages("tm")
+install.packages("udpipe")
+install.packages("readtext")
+install.packages("wordcloud")
+install.packages("ggraph")
+```
+
+Now we can load the required libraries in order to begin working on ranking our text.
 
 ```{r message=FALSE, warning=FALSE}
 library(textrank)
-library(tm)
 library(udpipe)
 library(readtext)
 library(wordcloud)
@@ -29,7 +43,8 @@ library(ggraph)
 library(tidyverse)
 ```
 
-Example Text: 
+Example Text:
+
 
 Let's read in the text! I converted everything to lowercase for simplicity of preprocessing.
 
@@ -105,7 +120,7 @@ head(keywords_frequent$keyword, 20)
 #Wordcloud
 wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c())
 
-```
+```   
 
 
 Cool, right?  But how does TextRank work?
@@ -153,6 +168,17 @@ ggraph(network, layout="fr") +
   labs(title="Common Word Cooccurrences")
 ```
 
+## Sentence Extraction
+
+We can also us TextRank for sentence extraction where we can automatically identify the most important sentences in a document. Using TextRank, we can calculate the overlap between any two sentences in the document by the number of common tokens between their processed forms. 
+
+$$
+\text{Similiarity}(S_i,S_j) = \frac{ \{ w_k \mid w_k \in S_i \text{ and } w_k \in S_j \} }{log(|S_i|) + log(|S_j|)} 
+$$
+
+```{r sentence_extraction}
+
+```
 
 
 References: 
