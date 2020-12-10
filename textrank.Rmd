@@ -208,7 +208,7 @@ $$
 PR(V_i) = = 0.15 + (0.85 \times \sum_{V_j \in \text{ to }(V_i)}\frac{w_{ji}PR(V_j)}{\sum_{V_k \text{ from }(V_j)}w_{jk}})
 $$
 
-For this part of the tutorial, we'll use a document that's a little bit older...Constitution of the United States.  If you'd rather not read the whole thing at https://constitutioncenter.org/interactive-constitution/full-text just let TextRank summarize it for you!  Just like we did for keyword extraction, we first have to tokenize, lemmatize, and tag parts of speech.
+For this part of the tutorial, we'll use a document that's a little bit older...the Constitution of the United States.  If you'd rather not read the whole thing at https://constitutioncenter.org/interactive-constitution/full-text just let TextRank summarize it for you!  Just like we did for keyword extraction, we first have to tokenize, lemmatize, and tag parts of speech.
 
 ```{r}
 constitution_text <- readtext("full_constitution.txt")
