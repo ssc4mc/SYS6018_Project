@@ -1,12 +1,50 @@
 ---
-title: "Using TextRank to Identify Keywords in Text"
+title: "A Guide to Text Summarization in R with TextRank"
 author: "Summer Chambers, Gaurav Anand, Vasudha Manikandan, and John Zhang"
 date: "December 2020"
 output: html_document
 ---
 
+## Overview
 
-# Using TextRank to Identify Keywords in Text
+This tutorial seeks to inform those with a background in data science and an interest in text analytics about keyword and sentence extraction using TextRank.  We will briefly discuss the PageRank algorithm and the representation of text as a graph or network before implementing TextRank to summarize a few example documents.
+
+
+## Background Info
+
+No matter the subject, reading large amounts of text can be tedious and can make people less receptive to the information being presented. Often, tedium can be avoided and understanding can be improved when the keywords or sentences in a text are identified and used to summarize a topic in an automated fashion. In the world of data science, this is called text summarization, where the task is to pick out enough of the text such that the extracted message is as close to that of the original text as possible. This process helps to condense information for more efficient analysis and consumption for a variety of audiences and domains. 
+
+There are two ways to approach text summarization. One is called abstractive--the other extractive. The abstractive approach builds a summary of the text in the way a human would, by picking out ideas and building concise and coherent sentences around these concepts. The abstractive approach tends to require deep learning and, unlike the extractive approach, isn’t very well documented. The extractive approach, which is more popular and much easier to implement, selects the ‘N’ most representative or important words/sentences that best encapsulate the original document.
+
+TextRank is an example of an extractive approach to text summarization that utilizes unsupervised learning and a graphical model of text.
+
+
+## Understanding the Algorithm 
+
+Check out the research paper authored by TextRank's creators at https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf for an in-depth description of the development of TextRank.
+
+TextRank relies on graphically-based models: networks of nodes (words or sentences) and edges (relationships between words or sentences). TextRank uses a variation of the PageRank algorithm to rank the most important or most central nodes highest. PageRank was created by Google to measure the importance of web pages by understanding how many other important websites linked to them. The PageRank algorithm is built around the concept of a random surfer clicking from page to page, along with a “dampening factor” representing a totally random jump to any page in the network. This equation represents the algorithm:
+
+According to the creators of both PageRank and TextRank, the dampening factor is generally chosen to be .85 (in other words, the probability of jumping to any random page is 1-.85, or 15%.  This results in the equation:
+ 
+Each node’s PageRank score depends on the PageRank score of all other nodes in the graph.  As such, calculating PageRank scores for an entire network is an interactive process. Let’s break down that process. Let’s say Page A has a link leading to Page B. We can’t calculate the rank of Page A until we know the rank of Page B, and we won’t know the rank of Page B until we calculate the rank of Page A. This may seem like a never-ending loop from hell, but we can easily solve for each rank by starting with equal values for each page’s rank and updating these ranks based on the number of outgoing edges of each Page in an iterative process. Every time the calculation is run, we are one step closer to the actual value of a page’s rank. We continue calculating until the rank values start to converge, or stop changing beyond a given threshold.  Thus, we are able to calculate the PageRank of Page A (or any page) without first knowing the PageRank of Page B (or any other page). 
+
+The essence of this algorithm is that after many iterations, the normalized probability distribution will be equal to 1.0. So while each page will have a different PageRank value, the average PageRank will be 1.0. Below is the basic structure of the algorithm: 
+
+* Create node objects that represent web pages in a set.
+* Create directed edges that connect each node to and from other nodes based on which web pages link to others and are linked to by others. 
+* Pick a random starting point. The “random surfer” will then travel across edges to other connected nodes.
+* While the random surfer will occasionally randomly select a link, they consider some edges more probable than others. Nodes are weighted higher for their incoming edges than their outgoing edges. 
+* The popularity or importance score for any node is the final probability that the random surfer will come across it. 
+
+Now that we understand PageRank, it’s a short jump to understand TextRank and how to use it to summarize text. The TextRank algorithm begins by setting every node’s--in this case word’s or sentence’s--rank equal to an arbitrary value, then iterates until it converges on a solution/final graph. While in PageRank, we’re talking about the probability of a surfer clicking from one page to another, in TextRank for keyword extraction, we consider the probability of one word occurring near--a set number of tokens before or after--another. TextRank for sentence extraction considers the probability of moving from one node to another equal to the similarity between the two sentences.  The measure of similarity utilized in TextRank is an adaptation of Jaccard’s similarity. 
+
+
+However, if you were to build your own algorithm from scratch, any kind of similarity score could be used. A distance of zero between two vectors implies 100% similarity.
+
+Now let's get coding and try out TextRank for ourselves!
+
+## Getting Set Up
 
 ```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -19,19 +57,19 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("ggraph")
 ```
 
-Some of the libraries you will need for this quick R tutorial are `textrank` `udpipe`, `readtext`, `wordcloud`, `igraph`, `ggraph`,`tidyverse`. They can be downloaded from CRAN using the following code.
-
+Some of the libraries you will need for this quick R tutorial are `textrank`, `udpipe`, `readtext`, `wordcloud`, `igraph`, `ggraph`, and `tidyverse`. They can be downloaded from CRAN using the following code:
 
 ```{r install_libraries, eval=FALSE}
 install.packages("textrank")
-install.packages("tm")
 install.packages("udpipe")
 install.packages("readtext")
 install.packages("wordcloud")
+install.packages("igraph")
 install.packages("ggraph")
+install.packages("tidyverse")
 ```
 
-Now we can load the required libraries in order to begin working on ranking our text.
+Now we can load these libraries and begin working on summarizing text.
 
 ```{r message=FALSE, warning=FALSE}
 library(textrank)
@@ -43,189 +81,202 @@ library(ggraph)
 library(tidyverse)
 ```
 
-Example Text:
+For our first example, we used a collection of McDonald's customer reviews from https://www.consumeraffairs.com/food/mcd.html
 
+So let's read in the text! The `readtext` library makes it easy to load a .txt file into R.
 
-Let's read in the text! I converted everything to lowercase for simplicity of preprocessing.
+We also recommend converting text into lowercase for simplicity of preprocessing, although some libraries will do this for you when you begin preprocessing.
 
 ```{r}
-#Using TM
-#filepath <- getwd()
-#corp_cms <- Corpus(DirSource(filepath, pattern="CMS-2018-0101-0001.txt"))
-
-#Readtext reads in text
-cms <- readtext("mcdanks.txt")
-cms <- tolower(cms$text) #make all lowercase
+cms <- readtext("mcdanks.txt") # Read txt
+cms <- tolower(cms$text) # Make all lowercase
 ```
 
-Now let's do some preprocessing of the text.  UDPipe's `annotate` function performs tokenization, lemmatization, and part of speech tagging.  I'll also remove stopwords by eliminating the first 20 most common non-nouns in the text.
 
-```{r}
-#Udpipe
-#ud_model <- udpipe_download_model(language="english")
-#ud_model <- udpipe_load_model(ud_model$file_model)
+To get our text ready to be fed into the TextRank algorithm, we'll want to do some basic preprocessing beforehand. UDPipe's `annotate` function performs tokenization, lemmatization, and part of speech tagging.  
+
+To download the UDpipe model for English text, use this code:
+
+```{r eval=FALSE}
+ud_model <- udpipe_download_model(language="english") # Download model
+ud_model <- udpipe_load_model(ud_model$file_model) # Load in model
+```
+
+We set `parser="none"` in order to skip dependency parsing, another default process of the `annotate` function that is unnecessary for our purposes.  This speeds up the preprocessing step, which can take a minute or two to run, depending on the length of your .txt file.
+
+```{r echo=FALSE}
 ud_model <- udpipe_load_model(file="english-ewt-ud-2.5-191206.udpipe")
+```
 
-x <- udpipe_annotate(ud_model, x=cms, tagger="default", parser="none") #tokenize, lemmatize, and tag POS
-x <- as.data.frame(x)
+```{r}
+x <- udpipe_annotate(ud_model, x=cms, tagger="default", parser="none") # Tokenize, Lemmatize, and Tag POS
 
-unique(x$upos) #parts of speech
+x <- as.data.frame(x) # Make dataframe 
 
-n_distinct(x$lemma)
+unique(x$upos) # Parts of Speech detected in our document
+
+n_distinct(x$lemma) # Number of items in our vocabluary
+```
+
+Like lemmatization, removing stopwords can improve the relevancy of the keywords returned with the TextRank algorithm.  However, removing too many can negatively affect your analysis, so in this example, we chose to remove only the top 10 most common non-nouns in the text, only after examining them to ensure they weren't important to us.
+
+```{r}
+non_nouns <- subset(x, !(upos %in% "NOUN")) # Isolate non-nouns
+
+stop_words <- head(txt_freq(non_nouns$lemma), 10) # Choose top 'n' stopwords
+
+stop_words$key # Examine stopwords
+
+clean_x <- subset(x, !(lemma %in% stop_words$key)) # Remove stopwords
 ```
 
 
-```{r}
-nouns_only <- subset(x, upos %in% "NOUN") #nouns only
-noun_frequency <- txt_freq(x=nouns_only$lemma) #udpipe
+## Keyword Extraction
 
-non_nouns <- subset(x, !(upos %in% "NOUN")) #only non-nouns
+Now let's use TextRank to extract keywords with `textrank_keywords`. While you can include other parts of speech such as verbs in this process, the authors of TextRank recommend restricting our vocabulary to Nouns and Adjectives with the `relevant` parameter for the most accurate results, after comparing TextRank's automatically extracted keywords to those that human reviewers selected independently.
 
-stop_words <- head(txt_freq(non_nouns$lemma), 20)
+Another relevant parameter to note in this function is `ngram_max` which is the maximum length of a sequence of tokens that should be considered when determining cooccurences/collocations of words for edges in the network. 
 
-stop_words$key
-```
-
-Now let's use TextRank to extract keywords. They recommend restricting our vocabulary to Nouns and Adjectives only for the most accurate results.
+TextRank's authors indicate that they return the top 1/3 of nodes with the highest PageRank scores after the algorithm finishes.
 
 ```{r}
-#Textrank
-clean_x <- subset(x, !(lemma %in% stop_words$key))
-
 textrank_result <- textrank_keywords(clean_x$lemma, 
                               relevant=clean_x$upos %in% c("NOUN", "ADJ"), 
                               ngram_max=8, 
                               sep=" ")
-
-
-summary(textrank_result$keywords_by_ngram)
-
-log_sorted_pr <- sort(log(textrank_result$pagerank$vector), decreasing=T)
-
-plot(log(textrank_result$pagerank$vector), xlab="Word Index", ylab="Log PageRank", main="TextRank")
-abline(a=log_sorted_pr[(length(log_sorted_pr)/3)], b=0)
-
-
 ```
 
 
-We can plot any subset of these identified keywords by their frequency with WordCloud.
+We can plot any subset of the TextRank-identified keywords by their frequency with the `wordcloud` function from the WordCloud package for a nice visual of the most important terms.
+
+Try changing the value of `ngram` in the `subset` function below to see different lengths of keyword sequences.
 
 ```{r}
+keywords_frequent <- subset(textrank_result$keywords, freq > 1 & ngram >= 1)
 
-keywords_frequent <- subset(textrank_result$keywords, freq > 5)# & ngram = 1 )
+head(keywords_frequent$keyword, 20) # Look at highly ranked keywords
 
-head(keywords_frequent$keyword, 20)
-
-#Wordcloud
-wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c())
-
+wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c("red", "orange", "gold", "dark orange", "maroon"))
 ```   
-
 
 Cool, right?  But how does TextRank work?
 
 It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or graphically central nodes highest.  PageRank was created by Google to measure the importance of webpages by understanding how many other websites linked to them.  The PageRank algorithm relies on the idea of a random surfer clicking from page to page, along with a dampening factor representing a totally random jump to any page in the network.  This equation represents the algorithm:
 
-
-$PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})$
+$$
+PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
+$$
 
 According to the authors of both PageRank and TextRank, the dampening factor <d> is chosen to be .85, resulting in the equation:
 
-$PR(V_i) = 0.15 + (0.85 \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})$
+$$
+PR(V_i) = 0.15 + (0.85 \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
+$$
 
 The TextRank algorithm begins by setting every node's score equal to an arbitrary value, then iterates until it converges on a solution/final graph.  This process tends to take about 20-30 iterations.
 
 Sequential keywords are reconstructed as multi-word keywords after the iterations are complete.  The function returns the top 1/3 sorted importance scores and keywords.
 
+Here we'll use igraph and ggraph to visualize the algorithm as it is used in text.
 
-
-Here we'll use igraph to visualize and explain the algorithm as it is used in text.
-
-
-First, we can look at the most common word collocations (how often to words appear sequentially?)
+Let's look at the most common word collocations (how often do words appear sequentially?)  The UDPipe package provides a function to calculate the  cooccurrence of words (in this case, only words appearing in the same sentence within 8 tokens of each other). This is a decent visual representation of the end state of TextRank's network, although this graph was calculated solely based on numbers of co-occurrences, not with the iterative ranking process used in TextRank.
 
 ```{r}
-x_keywords <- subset(x, lemma %in% keywords_frequent$keyword)
-colloc <- keywords_collocation(x_keywords, term="lemma", group="sentence_id", ngram_max=2, n_min=75)
-
-colloc
-
-
-#Weighted Undirected
+#Weighted Undirected vs. TextRank keywords directed, unweighted
 
 #code from https://cran.r-project.org/web/packages/udpipe/vignettes/udpipe-usecase-postagging-lemmatisation.html
 
-cooc <- cooccurrence(x=subset(clean_x, upos %in% c("NOUN", "ADJ")), term="lemma", group="sentence_id")
+cooc <- cooccurrence(x=subset(clean_x, upos %in% c("NOUN", "ADJ")), term="lemma", group="sentence_id", skipgram=8)
 
-
-network <- head(cooc, 45)
+network <- head(cooc, 30)
 network <- graph_from_data_frame(network)
+
 ggraph(network, layout="fr") +
-  geom_edge_link(aes(width=cooc, edge_alpha=cooc), edge_colour="purple") +
-  geom_node_text(aes(label=name), col="darkblue", size=4) +
+  geom_edge_link(aes(width=cooc, edge_alpha=cooc), edge_colour="orange") +
+  geom_node_text(aes(label=name), col="maroon", size=4) +
   theme(legend.position="none") +
   labs(title="Common Word Cooccurrences")
 ```
 
+
 ## Sentence Extraction
 
-We can also us TextRank for sentence extraction where we can automatically identify the most important sentences in a document. Using TextRank, we can calculate the overlap between any two sentences in the document by the number of common tokens between their processed forms. 
+TextRank can also be used for sentence extraction, in which we automatically identify the most important sentences in a document. Instead of using word co-occurrences, this process begins by calculating the similarity between sentences in a text.
 
-The similiarity between any two sentences, $S_i$ and $S_j$ can be calculated using the similiarity score,
+The authors of TextRank define the similarity between any two sentences, $S_i$ and $S_j$ below, where $w_k$ ... $w_n$ are the words in each sentence.  This formula is an adaptation of Jaccard's similarity.  As in keyword extraction above, the authors recommend only using Nouns and Adjectives as relevant words when calculating this similarity score.  However, any/all parts of speech can be used.
 
 $$
 \text{Similiarity}(S_i,S_j) = \frac{ \{ w_k \mid w_k \in S_i \text{ and } w_k \in S_j \} }{log(|S_i|) + log(|S_j|)} 
 $$
 
-This similiarity score allows us to represent sentences as nodes in graphs connected to other sentences based on how similiar they are to those nodes. Similiar to keyword extraction, we need to isolate the nouns and adjectives in order to find the most significant sentences. This weighted graph-based ranking can then be analyzed using the `textrank` module in R.
+We can now represent sentences as nodes and similarity scores as weights in our graph. This weighted graph-based ranking can then be fed into `textrank`.
 
-Switching to this weighted graph based algorithm, our TextRank score for each node can be calculated by using the formula,
+Since our starting network is weighted, a slightly adjusted version of the PageRank algorithm is used to calculate each node's rank:
 
 $$
-PR(V_i) = 1 - d + d \times \sum_{V_j \in \text{ to }(V_i)}\frac{w_{ji}}{\sum_{V_k \text{ from }(V_j)}w_{jk}} PR(V_j)
+PR(V_i) = = 0.15 + (0.85 \times \sum_{V_j \in \text{ to }(V_i)}\frac{w_{ji}PR(V_j)}{\sum_{V_k \text{ from }(V_j)}w_{jk}})
 $$
 
-For this part of the tutorial, let's use the constitution of the United States from way back in 1787. Just like we did for keyword extraction, we first have to lemmatize, tokenize and tag Parts of Speech (POS) for our new document.
+For this part of the tutorial, we'll use a document that's a little bit older...Constitution of the United States.  If you'd rather not read the whole thing at https://constitutioncenter.org/interactive-constitution/full-text just let TextRank summarize it for you!  Just like we did for keyword extraction, we first have to tokenize, lemmatize, and tag parts of speech.
 
+```{r}
+constitution_text <- readtext("full_constitution.txt")
 
+constitution_text <- tolower(constitution_text$text)
 
-```{r sentence_extraction, echo=True}
+constitution <- udpipe_annotate(ud_model, x=constitution_text, tagger="default", parser="none")
 
-#Readtext reads in text
-constitution_text <- readtext("constitution.txt")
-constitution_text <- tolower(constitution_text$text) #make all lowercase
-ud_model <- udpipe_load_model(file="english-ewt-ud-2.5-191206.udpipe")
-
-constitution <- udpipe_annotate(ud_model, x=constitution, tagger="default", parser="none") #tokenize, lemmatize, and tag POS
 constitution <- as.data.frame(constitution)
 ```
 
-We can then view the tokens along with their respective sentences (denoted by sentence id).
+Using the `udpipe` library, we need to identify our sentences and isolate the nouns and adjectives.
 
-```{r sentence_extraction1}
-head(constitution[,c('sentence_id','lemma','upos')],10)
-```
+```{r}
+sentences <- unique(constitution[, c("sentence_id", "sentence")]) # Get unique sentences from our dataframe
 
-Using the `udpipe` library, we need to identify our sentences by their respective paragraphs and isolate the nouns and adjectives within the sentences.
-```{r sentence_extraction2}
+relevant_terms <- subset(constitution, upos %in% c('NOUN','ADJ')) # Isolate nouns and adjectives, as above
 
-sentence_identifier <- unique(constitution[,'sentence_id'])
-sentences <- as.data.frame(unique(constitution$sentence))
-relevant_terms <- subset(constitution, upos %in% c('NOUN','ADJ')) # isolate nouns and adjectives
 relevant_terms <- relevant_terms[,c('sentence_id','lemma')]
-head(relevant_terms)
 ```
 
-Once we are done with this, we can now begin to analyze our document.
+Finally, we run TextRank's `textrank_sentences` and use the base R `summary` function to see the top n ranked sentences, in the order that they occurred in the original document (You can set the `keep.sentence.order` parameter to `FALSE` in order to see the sentences in order of their ranked importance.)
 
-```{r sentence_extraction3}
-tr <- textrank_sentences(data = sentences, terminology = relevant_terms)
+```{r}
+result2 <- textrank_sentences(data=sentences, terminology=relevant_terms)
+
+summary(result2,  n=5, keep.sentence.order=TRUE)
 ```
 
-References: 
+Try one or both of these techniques on your own with a text file of your choosing! 
+
+By using TextRrank to extract keywords and sentences, companies can understand what their customers are talking about, students can understand the most important parts of a research article, 
+
+
+## The Good and the Bad
+
+With all data mining techniques, there are pros and cons to consider. One of the major advantages to TextRank is that it is unsupervised.  This means that it does not require any kind of training data to get results.  This, of course, saves us a lot of time and energy.  
+
+Another advantage is that TextRank is language independent; it can be used on any language given the ability to perform basic text preprocessing.  Since the algorithm is based on word co-occurrence and sentence similarity, there is no incorporation of prior knowledge about grammar and syntax, except in the selection of candidate words by part of speech (more on this later).  
+
+Finally, TextRank is an improvement on simple text analytics techniques such as Bag of Words and TF-IDF which only account for word/document frequency.  For instance, TextRank takes into account word sequences (or n-grams), and can understand ‘not’ and ‘good’ as a compound of words leading to ‘not good’.
+
+While TextRank utilizes a unique and more refined approach than many basic natural language processing techniques, there are, of course, some limitations.  One major disadvantage to this approach is that it is not as advanced or powerful as a neural network model. TextRank is only able to consider the word or sentence level of a text.  It does not incorporate sub-word levels like word-embeddings which encode semantic information.   Due to the extractive nature of this process, it tends to lack context at word-level, and therefore does not achieve semantic comprehension.  In other words, while TextRank can extract the compound keyword ‘not good’, it has no way of understanding the negative meaning of this sequence.  Still, many would argue that kind of understanding is outside the scope of automated keyword extraction.  
+
+Another disadvantage is that TextRank’s accuracy is quite dependent on the text preprocessing done before a network is built.  The creators of TextRank believe that only nouns and adjectives should be candidates for keywords, and that only nouns and adjectives should be used in calculating sentence word-overlap or similarity.  This means that we need to tag our document for parts of speech before feeding it into the algorithm.  The process of POS-tagging can be time-consuming, and even impossible for very low-resource languages.  The algorithm can be run on a set of tokenized words without singling out nouns and adjectives, but would likely extract unhelpful keywords such as “the”, “with”, etc.  
+	
+
+## Conclusion
+
+Now that you’ve reached the end of the tutorial, you have a better understanding of the TextRank algorithm and its advantages in the world of text summarization.  Textrank incorporates word sequences and sentence similarities in addition to frequency in order to estimate importance.  The algorithm performs quite well on the extraction of important sentences, words, or other user-defined segments of text in practice.  So, the next time you have a need for text summarization, consider TextRank as an efficient and accurate option.
+
+
+## References
 
 * https://bnosac.github.io/udpipe/docs/doc7.html  
 * https://rstudio-pubs-static.s3.amazonaws.com/341868_231c841ed2d1476c9ccb3b7a07596a8c.html   
 * https://web.eecs.umich.edu/~mihalcea/papers/mihalcea.emnlp04.pdf  
 * https://cran.r-project.org/web/packages/udpipe/vignettes/udpipe-usecase-postagging-lemmatisation.html 
+* https://cs.wmich.edu/gupta/teaching/cs3310/lectureNotes_cs3310/Pagerank%20Explained%20Correctly%20with%20Examples_www.cs.princeton.edu_~chazelle_courses_BIB_pagerank.pdf
+* https://nlpforhackers.io/textrank-text-summarization/ 
+* https://www.consumeraffairs.com/food/mcd.html
+* https://constitutioncenter.org/interactive-constitution/full-text
