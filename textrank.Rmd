@@ -25,8 +25,16 @@ Check out the research paper authored by TextRank's creators at https://web.eecs
 
 TextRank relies on graphically-based models: networks of nodes (words or sentences) and edges (relationships between words or sentences). TextRank uses a variation of the PageRank algorithm to rank the most important or most central nodes highest. PageRank was created by Google to measure the importance of web pages by understanding how many other important websites linked to them. The PageRank algorithm is built around the concept of a random surfer clicking from page to page, along with a “dampening factor” representing a totally random jump to any page in the network. This equation represents the algorithm:
 
+$$
+PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
+$$
+
 According to the creators of both PageRank and TextRank, the dampening factor is generally chosen to be .85 (in other words, the probability of jumping to any random page is 1-.85, or 15%.  This results in the equation:
- 
+
+$$
+PR(V_i) = 0.15 + (0.85 \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
+$$
+
 Each node’s PageRank score depends on the PageRank score of all other nodes in the graph.  As such, calculating PageRank scores for an entire network is an interactive process. Let’s break down that process. Let’s say Page A has a link leading to Page B. We can’t calculate the rank of Page A until we know the rank of Page B, and we won’t know the rank of Page B until we calculate the rank of Page A. This may seem like a never-ending loop from hell, but we can easily solve for each rank by starting with equal values for each page’s rank and updating these ranks based on the number of outgoing edges of each Page in an iterative process. Every time the calculation is run, we are one step closer to the actual value of a page’s rank. We continue calculating until the rank values start to converge, or stop changing beyond a given threshold.  Thus, we are able to calculate the PageRank of Page A (or any page) without first knowing the PageRank of Page B (or any other page). 
 
 The essence of this algorithm is that after many iterations, the normalized probability distribution will be equal to 1.0. So while each page will have a different PageRank value, the average PageRank will be 1.0. Below is the basic structure of the algorithm: 
@@ -159,24 +167,6 @@ head(keywords_frequent$keyword, 20) # Look at highly ranked keywords
 wordcloud(words=keywords_frequent$keyword, freq=keywords_frequent$freq, colors=c("red", "orange", "gold", "dark orange", "maroon"))
 ```   
 
-Cool, right?  But how does TextRank work?
-
-It's a graphically-based model which generates a network of nodes as words and edges as co-occurrences of words. Using a variation of the PageRank algorithm, it ranks the most important or graphically central nodes highest.  PageRank was created by Google to measure the importance of webpages by understanding how many other websites linked to them.  The PageRank algorithm relies on the idea of a random surfer clicking from page to page, along with a dampening factor representing a totally random jump to any page in the network.  This equation represents the algorithm:
-
-$$
-PR(V_i) = (1-d) + (d \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
-$$
-
-According to the authors of both PageRank and TextRank, the dampening factor <d> is chosen to be .85, resulting in the equation:
-
-$$
-PR(V_i) = 0.15 + (0.85 \times \sum_{j \in to(V_i)}{\frac{PR(V_j)}{from(V_j)}})
-$$
-
-The TextRank algorithm begins by setting every node's score equal to an arbitrary value, then iterates until it converges on a solution/final graph.  This process tends to take about 20-30 iterations.
-
-Sequential keywords are reconstructed as multi-word keywords after the iterations are complete.  The function returns the top 1/3 sorted importance scores and keywords.
-
 Here we'll use igraph and ggraph to visualize the algorithm as it is used in text.
 
 Let's look at the most common word collocations (how often do words appear sequentially?)  The UDPipe package provides a function to calculate the  cooccurrence of words (in this case, only words appearing in the same sentence within 8 tokens of each other). This is a decent visual representation of the end state of TextRank's network, although this graph was calculated solely based on numbers of co-occurrences, not with the iterative ranking process used in TextRank.
@@ -198,6 +188,7 @@ ggraph(network, layout="fr") +
   labs(title="Common Word Cooccurrences")
 ```
 
+From the above word cooccurence network, we can see that our major noun 'food' is heavily related and associated with the adjective 'fast' and the noun 'staff'. As such this provides a graphical representation of the most prominent word cooccurences in our document. It is also interesting to note that the word 'one' and 'free' is an important word coocurrence, suggesting that McDonlands' reviews that had the words 'one' and 'free' more most likely talking about a 'buy one, get one free' offer. 
 
 ## Sentence Extraction
 
@@ -247,10 +238,9 @@ result2 <- textrank_sentences(data=sentences, terminology=relevant_terms)
 summary(result2,  n=5, keep.sentence.order=TRUE)
 ```
 
+Looking primarily at the third and fourth sentences we can conclude that one of the most important ideas in the Constitution is the passing/approval of legislation. This makes sense as the Constitution was written to establish a new government that would have rules and regulations, especially for lawmaking. A key phrase that was repeated in both the sentences is "within seven years of from the date of its submission to the states by the congress", again most likely an important idea, that a timeline is key when passing laws/amendments. 
+
 Try one or both of these techniques on your own with a text file of your choosing! 
-
-By using TextRrank to extract keywords and sentences, companies can understand what their customers are talking about, students can understand the most important parts of a research article, 
-
 
 ## The Good and the Bad
 
@@ -267,7 +257,7 @@ Another disadvantage is that TextRank’s accuracy is quite dependent on the tex
 
 ## Conclusion
 
-Now that you’ve reached the end of the tutorial, you have a better understanding of the TextRank algorithm and its advantages in the world of text summarization.  Textrank incorporates word sequences and sentence similarities in addition to frequency in order to estimate importance.  The algorithm performs quite well on the extraction of important sentences, words, or other user-defined segments of text in practice.  So, the next time you have a need for text summarization, consider TextRank as an efficient and accurate option.
+Now that you’ve reached the end of the tutorial, you have a better understanding of the TextRank algorithm and its advantages in the world of text summarization.  Textrank incorporates word sequences and sentence similarities in addition to frequency in order to estimate importance.  The algorithm performs quite well on the extraction of important sentences, words, or other user-defined segments of text in practice. By using TextRrank to extract keywords and sentences, companies can understand what their customers are talking about, students can understand the most important parts of a research article. So, the next time you have a need for text summarization, consider TextRank as an efficient and accurate option.
 
 
 ## References
